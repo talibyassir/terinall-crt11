@@ -22,10 +22,12 @@ import DepthChartWidget from './components/DepthChartWidget';
 import OrderFlowWidget from './components/OrderFlowWidget';
 import { Widget } from './components/Widget';
 import SettingsModal from './components/SettingsModal';
-import SymbolSelector from './components/SymbolSelector'; // Fixed relative import
+import SymbolSelector from './components/SymbolSelector';
 
 import { Candle, Order, Trade, ConnectionStatus, Position, AdvancedChartData } from './types';
 import { INITIAL_POSITIONS, generateOrderBook } from './constants';
+import * as cryptoData from './services/cryptoDataService';
+import { BinanceWebSocket, createTickerStream, createDepthStream, createTradeStream, createKlineStream } from './services/binanceService';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -148,58 +150,240 @@ const App: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    setStatus(ConnectionStatus.CONNECTED);
-    const updateInterval = setInterval(() => {
-      const volatility = (Math.random() - 0.5) * 25;
-      const newPrice = Math.max(100, btcPrice + volatility);
-      setBtcPrice(newPrice);
-      setOrderBook(generateOrderBook(newPrice));
+  const wsRef = React.useRef<BinanceWebSocket | null>(null);
+  const [useLiveData, setUseLiveData] = useState(true);
 
-      if (Math.random() > 0.3) {
-        const side = Math.random() > 0.5 ? 'buy' : 'sell';
-        const tradePrice = newPrice + (Math.random() - 0.5) * 2;
-        const size = Math.random() * 1.5;
-        
-        const newTrade: Trade = {
-          id: Date.now().toString() + Math.random().toString(),
-          price: tradePrice,
-          size,
-          time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' }),
-          side
-        };
-        setTrades(prev => [newTrade, ...prev].slice(0, 50));
-        
-        setChartData(prev => {
-            const lastCandle = prev.candles[prev.candles.length - 1];
-            const updatedCandle = { 
-                ...lastCandle, 
-                close: tradePrice, 
-                high: Math.max(lastCandle.high, tradePrice), 
-                low: Math.min(lastCandle.low, tradePrice), 
-                volume: lastCandle.volume + size 
-            };
-            const newCandles = [...prev.candles.slice(0, -1), updatedCandle];
+  const fetchInitialData = useCallback(async (symbol: string) => {
+    setStatus(ConnectionStatus.CONNECTING);
+    
+    const fetchWithFallback = async <T,>(fetchFn: () => Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await fetchFn();
+      } catch (err) {
+        console.warn('API fetch failed, using fallback:', err);
+        return fallback;
+      }
+    };
 
-            const lastCvd = prev.cvd[prev.cvd.length - 1];
-            const delta = (side === 'buy' ? size : -size) * 0.5;
-            const updatedCvd = { ...lastCvd, value: lastCvd.value + delta };
-            const newCvd = [...prev.cvd.slice(0, -1), updatedCvd];
+    try {
+      const [tickerData, orderBookData, tradesData, candlesData] = await Promise.all([
+        fetchWithFallback(() => cryptoData.fetchTickers([symbol]), []),
+        fetchWithFallback(() => cryptoData.fetchOrderBook(symbol), { bids: [], asks: [], spread: 0, spreadPercent: 0, symbol, lastUpdateId: 0 }),
+        fetchWithFallback(() => cryptoData.fetchRecentTrades(symbol), []),
+        fetchWithFallback(() => cryptoData.fetchCandles(symbol, interval, 200), []),
+      ]);
 
-            return { ...prev, candles: newCandles, cvd: newCvd };
+      const ticker = tickerData[0];
+      if (ticker) {
+        setBtcPrice(ticker.price);
+      }
+
+      if (orderBookData.bids.length > 0) {
+        setOrderBook({
+          bids: orderBookData.bids,
+          asks: orderBookData.asks,
         });
       }
-      setFundingRate(prev => prev + (Math.random() - 0.5) * 0.00001);
-    }, 200);
-    return () => clearInterval(updateInterval);
-  }, [btcPrice]);
+
+      if (tradesData.length > 0) {
+        setTrades(tradesData.map(t => ({
+          id: t.id,
+          price: t.price,
+          size: t.size,
+          time: new Date(t.time).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' }),
+          side: t.side,
+        })));
+      }
+
+      if (candlesData.length > 0) {
+        const cvd: { time: number; value: number }[] = [];
+        const oi: { time: number; value: number }[] = [];
+        const liquidations: { time: number; long: number; short: number }[] = [];
+        const funding: { time: number; value: number }[] = [];
+        let cumulativeDelta = 0;
+        let openInterest = 50000000;
+
+        candlesData.forEach((c, i) => {
+          const time = typeof c.time === 'number' ? c.time : parseInt(c.time as string);
+          const delta = (Math.random() - 0.5) * c.volume * 0.4;
+          cumulativeDelta += delta;
+          cvd.push({ time, value: cumulativeDelta });
+          
+          openInterest += (Math.random() - 0.5) * 100000;
+          oi.push({ time, value: openInterest });
+          
+          liquidations.push({
+            time,
+            long: Math.random() > 0.9 ? Math.random() * 50000 : 0,
+            short: Math.random() > 0.9 ? Math.random() * 50000 : 0
+          });
+          
+          funding.push({ time, value: 0.01 + Math.sin(i / 20) * 0.005 });
+        });
+
+        setChartData({
+          candles: candlesData,
+          cvd,
+          oi,
+          liquidations,
+          funding,
+        });
+      }
+
+      setStatus(ConnectionStatus.CONNECTED);
+    } catch (err) {
+      console.error('Failed to fetch initial data:', err);
+      setStatus(ConnectionStatus.CONNECTED);
+    }
+  }, [interval]);
+
+  const setupWebSocket = useCallback((symbol: string) => {
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+
+    const ws = new BinanceWebSocket();
+    wsRef.current = ws;
+
+    const streams = [
+      createTickerStream(symbol),
+      createTradeStream(symbol),
+      createDepthStream(symbol, 20),
+    ];
+
+    ws.connect(streams).then(() => {
+      setStatus(ConnectionStatus.CONNECTED);
+
+      ws.subscribe(createTickerStream(symbol), (data: any) => {
+        const newPrice = parseFloat(data.c || data.lastPrice);
+        if (newPrice) {
+          setBtcPrice(newPrice);
+        }
+        if (data.r) {
+          setFundingRate(parseFloat(data.r));
+        }
+      });
+
+      ws.subscribe(createTradeStream(symbol), (data: any) => {
+        const newTrade: Trade = {
+          id: (data.t || Date.now()).toString(),
+          price: parseFloat(data.p),
+          size: parseFloat(data.q),
+          time: new Date(data.T || Date.now()).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' }),
+          side: data.m ? 'sell' : 'buy',
+        };
+        
+        setTrades(prev => [newTrade, ...prev.slice(0, 49)]);
+
+        setChartData(prev => {
+          if (prev.candles.length === 0) return prev;
+          const lastCandle = prev.candles[prev.candles.length - 1];
+          const tradePrice = parseFloat(data.p);
+          const size = parseFloat(data.q);
+          const updatedCandle = { 
+            ...lastCandle, 
+            close: tradePrice, 
+            high: Math.max(lastCandle.high, tradePrice), 
+            low: Math.min(lastCandle.low, tradePrice), 
+            volume: lastCandle.volume + size 
+          };
+          const newCandles = [...prev.candles.slice(0, -1), updatedCandle];
+
+          const lastCvd = prev.cvd[prev.cvd.length - 1];
+          const side = data.m ? 'sell' : 'buy';
+          const delta = (side === 'buy' ? size : -size) * 0.5;
+          const updatedCvd = { ...lastCvd, value: lastCvd.value + delta };
+          const newCvd = [...prev.cvd.slice(0, -1), updatedCvd];
+
+          return { ...prev, candles: newCandles, cvd: newCvd };
+        });
+      });
+
+      ws.subscribe(createDepthStream(symbol, 20), (data: any) => {
+        if (data.bids && data.asks) {
+          let bidTotal = 0;
+          let askTotal = 0;
+
+          const bids: Order[] = data.bids.map((b: [string, string]) => {
+            const size = parseFloat(b[1]);
+            bidTotal += size;
+            return {
+              price: parseFloat(b[0]),
+              size,
+              total: bidTotal,
+              type: 'bid' as const,
+            };
+          });
+
+          const asks: Order[] = data.asks.map((a: [string, string]) => {
+            const size = parseFloat(a[1]);
+            askTotal += size;
+            return {
+              price: parseFloat(a[0]),
+              size,
+              total: askTotal,
+              type: 'ask' as const,
+            };
+          });
+
+          setOrderBook({ bids, asks });
+        }
+      });
+    }).catch(err => {
+      console.error('WebSocket connection failed:', err);
+      setStatus(ConnectionStatus.DISCONNECTED);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (useLiveData) {
+      fetchInitialData(activeSymbol);
+      setupWebSocket(activeSymbol);
+    } else {
+      setStatus(ConnectionStatus.CONNECTED);
+      const updateInterval = setInterval(() => {
+        const volatility = (Math.random() - 0.5) * 25;
+        const newPrice = Math.max(100, btcPrice + volatility);
+        setBtcPrice(newPrice);
+        setOrderBook(generateOrderBook(newPrice));
+
+        if (Math.random() > 0.3) {
+          const side = Math.random() > 0.5 ? 'buy' : 'sell';
+          const tradePrice = newPrice + (Math.random() - 0.5) * 2;
+          const size = Math.random() * 1.5;
+          
+          const newTrade: Trade = {
+            id: Date.now().toString() + Math.random().toString(),
+            price: tradePrice,
+            size,
+            time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' }),
+            side
+          };
+          setTrades(prev => [newTrade, ...prev].slice(0, 50));
+        }
+        setFundingRate(prev => prev + (Math.random() - 0.5) * 0.00001);
+      }, 200);
+      return () => clearInterval(updateInterval);
+    }
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [activeSymbol, useLiveData, fetchInitialData, setupWebSocket]);
 
   const handleSymbolChange = useCallback((symbol: string) => {
       setActiveSymbol(symbol);
-      setTrades([]); 
-      setChartData(generateInitialData(200)); 
-      setBtcPrice(symbol.includes('ETH') ? 3000 : symbol.includes('SOL') ? 140 : 90000);
-  }, []);
+      setTrades([]);
+      if (useLiveData) {
+        fetchInitialData(symbol);
+        setupWebSocket(symbol);
+      } else {
+        setChartData(generateInitialData(200)); 
+        setBtcPrice(symbol.includes('ETH') ? 3000 : symbol.includes('SOL') ? 140 : 90000);
+      }
+  }, [useLiveData, fetchInitialData, setupWebSocket]);
 
   const handleClosePosition = (symbol: string) => {
       setPositions(prev => prev.filter(p => p.symbol !== symbol));
