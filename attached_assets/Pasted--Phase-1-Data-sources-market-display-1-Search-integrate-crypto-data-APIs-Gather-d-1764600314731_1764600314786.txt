@@ -1,0 +1,105 @@
+
+## Phase 1 — Data sources & market display
+
+1. *Search & integrate crypto data APIs*
+
+   * Gather direct, reliable APIs that provide crypto market data and metadata (prices, markets, logos). Examples to include: *CoinGecko* (market data & logos), *CoinMarketCap*, and each exchange’s public data APIs.
+   * Add endpoints for *Binance, **Coinbase / Coinbase Pro, **Bybit*, and other major centralized exchanges (CEX).
+   * Add decentralized exchange (DEX) data sources (Uniswap, PancakeSwap, etc.) where applicable.
+
+2. *Logo / image assets*
+
+   * Fetch and display coin/token logos and platform logos (exchanges, DEXs) in the UI.
+   * Provide options to cache these assets and fallback images when unavailable.
+
+3. *Live market feed*
+
+   * Implement live market data (ticker, order book snapshots, recent trades). Use websockets where available (e.g., Binance) and fall back to polling when necessary.
+   * Present a “live market” panel/widget for quick view.
+
+---
+
+## Phase 2 — Trading: buy & sell (DEX + CEX)
+
+1. *DEX trading integration*
+
+   * Integrate common DEXs (Uniswap, PancakeSwap, others) via their router contracts / APIs to enable on-chain swap executions.
+   * Add wallet connectivity (e.g., WalletConnect, MetaMask) so users can sign transactions and trade from their wallets.
+   * Provide UI flows for swap: select token pair, set slippage, gas price, confirm, and submit.
+
+2. *CEX trading integration*
+
+   * Integrate CEX trading via the exchange APIs (Binance, Coinbase, Bybit, etc.). Use their authenticated REST/websocket APIs for order placement, order status, balances.
+   * Support the platform-specific API keys and permissions flow for the user to connect (store keys securely).
+
+3. *Error handling & reconciliation*
+
+   * Implement comprehensive error handling for API failures, rate limits, network/transaction failures, and mismatches between on-chain and CEX states.
+   * Provide retry strategies, user-facing error messages, and logging/alerts for operators.
+   * Reconcile orders and balances periodically and surface inconsistencies in the UI.
+
+---
+
+## Phase 3 — Fixes, home page & layout
+
+1. *Home page problems*
+
+   * Inspect the home page; identify non-working features and restore them so each UI element performs its intended function (loading, updating, navigation, etc.).
+   * Create or repair layout templates and responsive behaviors.
+
+2. *Systematic issue triage*
+
+   * Test and review components *one by one*. For each component:
+
+     * Describe its function.
+     * List observed problems.
+     * Propose corrective actions and severity/priority.
+
+---
+
+## Widgets & UI configuration
+
+1. *Resizable, flexible widgets*
+
+   * Make widgets resizable from all sides (drag-to-resize) and support snapping/grids so users can enlarge from any direction.
+   * Ensure widgets support multiple content types (live tickers, charts, order forms, logos, market depth, etc.).
+
+2. *Advanced settings for every widget*
+
+   * Every widget must include advanced configuration options (data source selection, refresh intervals, display options, caching, thresholds, etc.) with no exceptions.
+   * Provide a consistent settings panel UX: basic vs advanced tabs; save presets; import/export widget configs.
+
+3. *Creativity & polish*
+
+   * Improve visuals and UX where possible: layout presets, drag/drop, theming, compact/dense modes, keyboard accessibility.
+   * Add helpful microcopy and confirmations for risky actions (e.g., executing large trades, using high slippage).
+
+---
+
+## Quality, security & operational notes
+
+* *Security:* Secure storage of API keys, protect user secrets, follow best practices for back-end credential handling and encryption.
+* *Rate limits:* Respect exchange rate limits; implement back-off and caching.
+* *Testing:* Unit tests for integrations, end-to-end tests for trading flows, and simulated environments for DEX/CEX trade testing.
+* *Monitoring & logs:* Track API failures, latency, transaction statuses, and user-facing errors. Provide dashboards for operators.
+
+---
+
+## Deliverables (example)
+
+* Inventory/list of integrated APIs and endpoints (with brief description and usage).
+* Implemented live market widget(s) showing price, logo, order book, trades.
+* Wallet-connect-enabled DEX swap widget (Uniswap/PancakeSwap).
+* CEX order placement integration for at least Binance + one other (Coinbase/Bybit).
+* Comprehensive error handling & reconcilers.
+* Fully resizable/configurable widgets with advanced settings UI.
+* Bug report & fixes applied to homepage and a step-by-step triage report for remaining components.
+
+---
+
+If you want, I can now:
+
+* Turn this into a technical task list with tickets and estimated implementation steps, or
+* Produce the exact API endpoints and code snippets for Binace, CoinGecko, Uniswap and WalletConnect to start implementation.
+
+Which would you like me to do next?
