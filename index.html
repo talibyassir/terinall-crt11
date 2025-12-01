@@ -1,0 +1,149 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>InSilico Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/react-grid-layout@1.5.0/css/styles.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/react-resizable@3.0.5/css/styles.css" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              terminal: {
+                bg: '#0b0c10',
+                panel: '#111217',
+                border: '#2a2b30',
+                text: '#8b9bb4',
+                green: '#26a69a',
+                red: '#ef5350',
+                highlight: '#2962ff',
+                greenBg: 'rgba(38, 166, 154, 0.15)',
+                redBg: 'rgba(239, 83, 80, 0.15)',
+              }
+            },
+            fontFamily: {
+              mono: ['"JetBrains Mono"', 'monospace'],
+              sans: ['"Inter"', 'sans-serif'],
+            },
+            fontSize: {
+              'xxs': '0.65rem',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      /* Custom Scrollbar for Terminal Look */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #0b0c10;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #2a2b30;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #3a3b40;
+      }
+      body {
+        background-color: #0b0c10;
+        color: #cdd6f4;
+        overflow: hidden; 
+      }
+      .react-grid-layout {
+        position: relative;
+        transition: height 200ms ease;
+      }
+      .react-grid-item {
+        transition: all 200ms ease;
+        transition-property: left, top;
+      }
+      .react-grid-item.cssTransforms {
+        transition-property: transform;
+      }
+      .react-grid-item.resizing {
+        z-index: 100;
+        box-shadow: 0 0 10px rgba(41, 98, 255, 0.5);
+        border: 1px solid #2962ff !important;
+      }
+      .react-grid-item.react-grid-placeholder {
+        background: rgba(41, 98, 255, 0.05) !important;
+        opacity: 0.5;
+        border: 1px dashed #2962ff;
+        border-radius: 4px;
+      }
+      
+      .react-resizable-handle {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        bottom: 0;
+        right: 0;
+        cursor: se-resize;
+        z-index: 10;
+        background-image: radial-gradient(circle, #444 1px, transparent 1px);
+        background-size: 4px 4px;
+        background-position: bottom right;
+        opacity: 0.5;
+        transition: opacity 0.2s;
+      }
+      .react-resizable-handle:hover {
+        opacity: 1;
+      }
+      .react-resizable-handle::after {
+        content: "";
+        position: absolute;
+        right: 3px;
+        bottom: 3px;
+        width: 6px;
+        height: 6px;
+        border-right: 2px solid #666;
+        border-bottom: 2px solid #666;
+      }
+      
+      .layout {
+        background-color: #0b0c10;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "react-grid-layout": "https://esm.sh/react-grid-layout@1.5.0?external=react,react-dom",
+    "react-resizable": "https://esm.sh/react-resizable@3.0.5?external=react,react-dom",
+    "highcharts": "https://esm.sh/highcharts@11.4.3",
+    "highcharts/modules/stock": "https://esm.sh/highcharts@11.4.3/modules/stock",
+    "highcharts/modules/heatmap": "https://esm.sh/highcharts@11.4.3/modules/heatmap",
+    "highcharts/modules/drag-panes": "https://esm.sh/highcharts@11.4.3/modules/drag-panes",
+    "highcharts/indicators/indicators": "https://esm.sh/highcharts@11.4.3/indicators/indicators",
+    "highcharts/indicators/rsi": "https://esm.sh/highcharts@11.4.3/indicators/rsi",
+    "highcharts/indicators/stochastic": "https://esm.sh/highcharts@11.4.3/indicators/stochastic",
+    "highcharts/indicators/ema": "https://esm.sh/highcharts@11.4.3/indicators/ema",
+    "highcharts/indicators/macd": "https://esm.sh/highcharts@11.4.3/indicators/macd",
+    "highcharts/indicators/atr": "https://esm.sh/highcharts@11.4.3/indicators/atr",
+    "highcharts/indicators/volume-by-price": "https://esm.sh/highcharts@11.4.3/indicators/volume-by-price",
+    "highcharts/indicators/vwap": "https://esm.sh/highcharts@11.4.3/indicators/vwap",
+    "highcharts/indicators/bollinger-bands": "https://esm.sh/highcharts@11.4.3/indicators/bollinger-bands",
+    "highcharts/": "https://aistudiocdn.com/highcharts@^12.4.0/"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
