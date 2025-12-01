@@ -65,12 +65,14 @@ export const fetchTickers = async (
   exchange: Exchange = 'binance'
 ): Promise<MarketTicker[]> => {
   if (exchange === 'binance') {
-    const tickerData = await binance.get24hrTicker();
-    const tickerArray = Array.isArray(tickerData) ? tickerData : [tickerData];
+    const targetSymbols = symbols.length === 0 ? binance.popularSymbols : symbols;
     
-    const filteredTickers = tickerArray.filter(t => 
-      symbols.length === 0 || symbols.includes(t.symbol)
+    const tickerPromises = targetSymbols.map(symbol => 
+      binance.get24hrTicker(symbol).catch(() => null)
     );
+    
+    const tickerData = await Promise.all(tickerPromises);
+    const filteredTickers = tickerData.filter((t): t is import('./binanceService').BinanceTicker => t !== null);
 
     return filteredTickers.map(t => ({
       symbol: t.symbol,
@@ -96,46 +98,58 @@ export const fetchOrderBook = async (
   limit: number = 20
 ): Promise<OrderBookData> => {
   if (exchange === 'binance') {
-    const data = await binance.getOrderBook(symbol, limit);
-    
-    let bidTotal = 0;
-    let askTotal = 0;
-    
-    const bids: Order[] = data.bids.map(([price, size]) => {
-      const sizeNum = parseFloat(size);
-      bidTotal += sizeNum;
+    try {
+      const data = await binance.getOrderBook(symbol, limit);
+      
+      let bidTotal = 0;
+      let askTotal = 0;
+      
+      const bids: Order[] = data.bids.map(([price, size]) => {
+        const sizeNum = parseFloat(size);
+        bidTotal += sizeNum;
+        return {
+          price: parseFloat(price),
+          size: sizeNum,
+          total: bidTotal,
+          type: 'bid' as const,
+        };
+      });
+
+      const asks: Order[] = data.asks.map(([price, size]) => {
+        const sizeNum = parseFloat(size);
+        askTotal += sizeNum;
+        return {
+          price: parseFloat(price),
+          size: sizeNum,
+          total: askTotal,
+          type: 'ask' as const,
+        };
+      });
+
+      const bestBid = bids[0]?.price || 0;
+      const bestAsk = asks[0]?.price || 0;
+      const spread = bestAsk - bestBid;
+      const spreadPercent = bestBid > 0 ? (spread / bestBid) * 100 : 0;
+
       return {
-        price: parseFloat(price),
-        size: sizeNum,
-        total: bidTotal,
-        type: 'bid' as const,
+        symbol,
+        bids,
+        asks,
+        lastUpdateId: data.lastUpdateId,
+        spread,
+        spreadPercent,
       };
-    });
-
-    const asks: Order[] = data.asks.map(([price, size]) => {
-      const sizeNum = parseFloat(size);
-      askTotal += sizeNum;
+    } catch (err) {
+      console.warn('Order book REST API failed, WebSocket will provide real-time updates:', err);
       return {
-        price: parseFloat(price),
-        size: sizeNum,
-        total: askTotal,
-        type: 'ask' as const,
+        symbol,
+        bids: [],
+        asks: [],
+        lastUpdateId: 0,
+        spread: 0,
+        spreadPercent: 0,
       };
-    });
-
-    const bestBid = bids[0]?.price || 0;
-    const bestAsk = asks[0]?.price || 0;
-    const spread = bestAsk - bestBid;
-    const spreadPercent = bestBid > 0 ? (spread / bestBid) * 100 : 0;
-
-    return {
-      symbol,
-      bids,
-      asks,
-      lastUpdateId: data.lastUpdateId,
-      spread,
-      spreadPercent,
-    };
+    }
   }
 
   throw new Error(`Exchange ${exchange} not yet supported`);

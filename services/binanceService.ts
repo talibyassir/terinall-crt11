@@ -213,7 +213,11 @@ export class BinanceWebSocket {
 
   private attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('Max reconnection attempts reached');
+      console.warn('Max reconnection attempts reached, will try again in 30s');
+      setTimeout(() => {
+        this.reconnectAttempts = 0;
+        this.attemptReconnect();
+      }, 30000);
       return;
     }
 
