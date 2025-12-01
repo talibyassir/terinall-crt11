@@ -82,7 +82,7 @@ const AIAnalysis: React.FC<{ btcPrice: number }> = ({ btcPrice }) => {
             </div>
           </div>
         ))}
-        {loading && <div className="text-terminal-highlight animate-pulse text-[9px] pl-1">> Analyzing blockchain data...</div>}
+        {loading && <div className="text-terminal-highlight animate-pulse text-[9px] pl-1">&gt; Analyzing blockchain data...</div>}
       </div>
 
       <div className="p-2 border-t border-terminal-border z-10 bg-[#111217]">

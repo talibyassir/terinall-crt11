@@ -8,8 +8,9 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 5000,
         host: '0.0.0.0',
-        allowedHosts: ['all'],
         hmr: {
+          protocol: 'wss',
+          host: env.REPLIT_DEV_DOMAIN || 'localhost',
           clientPort: 443,
         }
       },
