@@ -256,7 +256,6 @@ const App: React.FC = () => {
 
       ws.subscribe(createTickerStream(symbol), (data: any) => {
         const newPrice = parseFloat(data.c || data.lastPrice);
-        console.log('Ticker update:', { symbol, rawData: data, parsedPrice: newPrice });
         if (newPrice && newPrice > 0) {
           setBtcPrice(newPrice);
         }

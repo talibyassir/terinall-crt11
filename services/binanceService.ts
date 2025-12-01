@@ -175,11 +175,6 @@ export class BinanceWebSocket {
           const data = JSON.parse(event.data);
           const stream = data.stream || this.getStreamFromData(data);
           
-          // Debug: Log ticker data
-          if (stream && stream.includes('@ticker')) {
-            console.log('WebSocket ticker received:', { stream, price: data.c, data });
-          }
-          
           if (stream && this.subscriptions.has(stream)) {
             this.subscriptions.get(stream)?.(data.data || data);
           }
